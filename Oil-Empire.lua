@@ -147,7 +147,9 @@ local function stealLoop()
         local plots = workspace:FindFirstChild("Plots")
         if not plots then task.wait(2); continue end
 
-        local ownIdx = getOwnPlotIndex()
+        local ownIdx  = getOwnPlotIndex()
+        local ownPlot = ownIdx and plots:FindFirstChild("Plot" .. ownIdx)
+        local homeTp  = ownPlot and ownPlot:FindFirstChild("TpHere")
 
         for i = 1, 6 do
             if not stealEnabled then break end
@@ -192,6 +194,14 @@ local function stealLoop()
                 steal.MaxActivationDistance = math.huge
                 fireproximityprompt(steal)
                 task.wait(0.5)
+
+                if homeTp then
+                    local hrp2 = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp2 then
+                        hrp2.CFrame = homeTp.CFrame
+                        task.wait(0.5)
+                    end
+                end
             end
         end
 
@@ -199,7 +209,7 @@ local function stealLoop()
     end
 end
 local sellPrice   = 10
-local minGasoline = 50000
+local minGasoline = 10000
 local sellThread  = nil
 local sellStore, sellPrompt, sellRemote
 local function cacheSellAssets()
@@ -434,7 +444,7 @@ local function animSwitch(bg, knob, on)
         BackgroundColor3 = on and SWITCH_ON_BG or SWITCH_OFF_BG,
     }):Play()
 end
-local MAIN_W   = 280
+local MAIN_W   = 320
 local MAX_H    = 400
 local TITLE_H  = 46
 local RADIUS   = 14
@@ -483,7 +493,7 @@ bylineLabel.RichText         = true
 bylineLabel.Size             = UDim2.new(1,-95,0,11)
 bylineLabel.Position         = UDim2.new(0,26,0,25)
 bylineLabel.BackgroundTransparency = 1
-bylineLabel.TextColor3       = Color3.fromRGB(155,155,155)
+bylineLabel.TextColor3       = Color3.fromRGB(144,144,144)
 bylineLabel.TextSize         = 9
 bylineLabel.Font             = Enum.Font.Gotham
 bylineLabel.TextXAlignment   = Enum.TextXAlignment.Left
@@ -749,8 +759,8 @@ reg2(gasCard)
 mkLabel(gasCard,"Min Gasoline",13,14,9,0.6,18,true)
 do local l=mkLabel(gasCard,"Min gas before selling",12,14,27,0,14,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,14); l.TextTruncate=Enum.TextTruncate.AtEnd end
 local gasVal = Instance.new("TextLabel", gasCard)
-gasVal.Text              = "50,000"
-gasVal.Size              = UDim2.new(0.5,-8,0,22)
+gasVal.Text              = "10K"
+gasVal.Size              = UDim2.new(0.5,-22,0,22)
 gasVal.Position          = UDim2.new(0.5,4,0,9)
 gasVal.BackgroundTransparency = 1
 gasVal.TextColor3        = Color3.fromRGB(155,155,155)
@@ -853,7 +863,7 @@ footerLbl.Text              = "made by dekxonn"
 footerLbl.Size              = UDim2.new(1,0,1,0)
 footerLbl.BackgroundTransparency = 1
 footerLbl.TextColor3        = Color3.fromRGB(144,144,144)
-footerLbl.TextSize          = 12
+footerLbl.TextSize          = 10
 footerLbl.Font              = Enum.Font.Gotham
 footerLbl.TextXAlignment    = Enum.TextXAlignment.Center
 do
@@ -1098,9 +1108,9 @@ task.spawn(function()
             return lp.PlayerGui.Main.SellGas.NextStock.Text
         end)
         if okT and timerTxt and tostring(timerTxt) ~= "" then
-            gasTimerLabel.Text = "" .. tostring(timerTxt)
+            gasTimerLabel.Text = "Next Price in: " .. tostring(timerTxt)
         else
-            gasTimerLabel.Text = ""
+            gasTimerLabel.Text = "Next Price in: —"
         end
         local okS, spRaw = pcall(function()
             return lp.PlayerGui.Main.SellGas.Main.Sell.TextLabel.Text
