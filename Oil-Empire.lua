@@ -1115,7 +1115,7 @@ task.spawn(function()
         local okS, spRaw = pcall(function()
             return lp.PlayerGui.Main.SellGas.Main.Sell.TextLabel.Text
         end)
-        local extracted = (okS and spRaw) and spRaw:match("%$[%d,]+") or "—"
+        local extracted = (okS and spRaw) and spRaw:match("%$[%d,%.]+%a*") or "—"
         sellPriceVal.Text = extracted
         do
             local gasPriceStr = (okP and price) and ("$"..tostring(price)) or "$—"
