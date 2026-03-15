@@ -1,5 +1,4 @@
--- ================================================================
---  Oil Empire🛢️ open source, keyless, made by dekxonn
+-- Oil Empire🛢️ Auto Farm, Auto Sell, keyless - open source | Made by dkxn
 
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
@@ -105,98 +104,201 @@ local function farmLoop()
     end
 end
 local sellEnabled = false
-local sellPrice   = 15
+local sellPrice   = 12
+local minGasoline = 50000
 local sellThread  = nil
+local sellStore, sellPrompt, sellRemote
+local function cacheSellAssets()
+    local stores = workspace:FindFirstChild("Stores")
+    if not stores then return false end
+    sellStore = stores:FindFirstChild("Sell")
+    if not sellStore then return false end
+    local prompt = sellStore:FindFirstChild("SellGas", true)
+    if not prompt then
+        for _, v in ipairs(sellStore:GetDescendants()) do
+            if v:IsA("ProximityPrompt") then prompt = v; break end
+        end
+    end
+    sellPrompt = prompt
+    for _, v in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        if v:IsA("RemoteEvent") and v.Name:lower():find("sell") then
+            sellRemote = v
+            break
+        end
+    end
+    if not sellRemote then
+        for _, v in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+            if v:IsA("RemoteEvent") and (
+                v.Name:lower():find("gas") or
+                v.Name:lower():find("store") or
+                v.Name:lower():find("shop")
+            ) then
+                sellRemote = v
+                break
+            end
+        end
+    end
+    if not sellRemote then
+    end
+    return true
+end
+local function vimClick(btn)
+    local vp  = game:GetService("VirtualInputManager")
+    local pos = btn.AbsolutePosition + btn.AbsoluteSize * 0.5
+    vp:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 0)
+    task.wait(0.08)
+    vp:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
+end
+local function doTeleportToStore()
+    local standPart = sellStore:FindFirstChild("Primary", true)
+    if not standPart or not standPart:IsA("BasePart") then
+        for _, v in ipairs(sellStore:GetDescendants()) do
+            if v:IsA("BasePart") then standPart = v; break end
+        end
+    end
+    if not standPart then return nil end
+    local char = lp.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp then return nil end
+    local savedCF = hrp.CFrame
+    hrp.Anchored = true
+    if hum then hum.PlatformStand = true end
+    hrp.CFrame = standPart.CFrame * CFrame.new(0, 4, 0)
+    task.wait()
+    hrp.Anchored = false
+    if hum then hum.PlatformStand = false end
+    return savedCF
+end
+local function doTeleportBack(savedCF)
+    if not savedCF then return end
+    local char = lp.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp then return end
+    hrp.Anchored = true
+    if hum then hum.PlatformStand = true end
+    hrp.CFrame = savedCF
+    task.wait()
+    hrp.Anchored = false
+    if hum then hum.PlatformStand = false end
+end
+local function closeGui()
+    local sellGui = lp.PlayerGui.Main.SellGas
+    pcall(function()
+        local closeBtn = sellGui.Close
+        local oldZ = closeBtn.ZIndex
+        closeBtn.ZIndex = 9999
+        task.wait()
+        vimClick(closeBtn)
+        closeBtn.ZIndex = oldZ
+    end)
+    task.wait(0.3)
+    if sellGui.Visible then
+        pcall(function()
+            local vp = game:GetService("VirtualInputManager")
+            vp:SendKeyEvent(true,  Enum.KeyCode.Escape, false, game)
+            task.wait(0.05)
+            vp:SendKeyEvent(false, Enum.KeyCode.Escape, false, game)
+        end)
+        task.wait(0.2)
+    end
+    if sellGui.Visible then
+        pcall(function()
+            sellGui.Visible = false
+            local mainGui = lp.PlayerGui:FindFirstChild("Main")
+            if mainGui then
+                for _, v in ipairs(mainGui:GetChildren()) do
+                    local lname = v.Name:lower()
+                    if v:IsA("Frame") and (
+                        lname:find("blur") or lname:find("dark") or
+                        lname:find("overlay") or lname:find("dim") or
+                        lname:find("bg") or lname:find("background")
+                    ) then
+                        v.Visible = false
+                    end
+                end
+                local lighting = game:GetService("Lighting")
+                for _, v in ipairs(lighting:GetChildren()) do
+                    if v:IsA("BlurEffect") then
+                        v.Enabled = false
+                        task.delay(2, function() v.Enabled = true end)
+                    end
+                end
+            end
+        end)
+    end
+end
+local function trySell()
+    local sellGui = lp.PlayerGui.Main.SellGas
+    local sellBtn = sellGui.Main.Sell
+    if sellRemote then
+        local ok, err = pcall(function() sellRemote:FireServer() end)
+        if ok then
+            return true
+        else
+        end
+    end
+    local ok2, err2 = pcall(function() vimClick(sellBtn) end)
+    if ok2 then
+        return true
+    else
+    end
+    return false
+end
 local function sellLoop()
-    print("[AutoSell] Loop started | Min price:", sellPrice)
+    if not sellStore then
+        if not cacheSellAssets() then
+            sellEnabled = false
+            return
+        end
+    end
+    local lastSellPrice = nil
     while sellEnabled do
         local okP, price = pcall(function()
             return game:GetService("ReplicatedStorage").GasPrice.Value
         end)
-        if not okP then
-            warn("[AutoSell] FAILED to read GasPrice:", price)
-            task.wait(1); continue
+        if not okP or type(price) ~= "number" then
+            task.wait(2); continue
         end
-        if type(price) ~= "number" then
-            warn("[AutoSell] GasPrice is not a number:", type(price), tostring(price))
-            task.wait(1); continue
-        end
-        print(string.format("[AutoSell] GasPrice=%d MinPrice=%d %s",
-            price, sellPrice,
-            price >= sellPrice and "→ SELLING" or "→ waiting"))
-        if price >= sellPrice then
-            local panel, sellBtn
-            local okPanel = pcall(function()
-                panel   = lp.PlayerGui.Main.SellGas
-                sellBtn = panel.Main.Sell
-            end)
-            if not okPanel or not sellBtn then
-                warn("[AutoSell] Cannot find SellGas panel or Sell button")
-                task.wait(1); continue
+        local okG, gasoline = pcall(function()
+            return lp.leaderstats.Gasoline.Value
+        end)
+        local hasEnoughGas = okG and type(gasoline) == "number" and gasoline >= minGasoline
+        local priceOk     = price >= sellPrice
+        local alreadySold = price == lastSellPrice
+        if priceOk and hasEnoughGas and not alreadySold then
+            local wasEnabled = enabled
+            if wasEnabled then
+                enabled = false
+                if farmThread then task.cancel(farmThread); farmThread = nil end
             end
-            local wasVisible = panel.Visible
-            panel.Visible = true
-            print("[AutoSell] Panel forced visible (was:", wasVisible, ")")
-            task.wait()
-            print(string.format("[AutoSell] Sell button — Visible:%s AbsPos:%s AbsSize:%s",
-                tostring(sellBtn.Visible),
-                tostring(sellBtn.AbsolutePosition),
-                tostring(sellBtn.AbsoluteSize)))
-            local fired = false
-            print("[AutoSell] Trying VirtualInputManager tap...")
-            local ok1, err1 = pcall(function()
-                local vp  = game:GetService("VirtualInputManager")
-                local pos = sellBtn.AbsolutePosition + sellBtn.AbsoluteSize * 0.5
-                print("[AutoSell]   Tapping screen pos:", pos.X, pos.Y)
-                vp:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 0)
-                task.wait(0.05)
-                vp:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 0)
-            end)
-            if ok1 then
-                print("[AutoSell] ✓ VirtualInputManager tap sent")
-                fired = true
-            else
-                warn("[AutoSell] ✗ VirtualInputManager failed:", tostring(err1))
-            end
-            if not fired then
-                print("[AutoSell] Trying Activated:Fire()...")
-                local ok2, err2 = pcall(function()
-                    sellBtn.Activated:Fire()
-                end)
-                if ok2 then
-                    print("[AutoSell] ✓ Activated:Fire() sent")
-                    fired = true
+            local sellGui = lp.PlayerGui.Main.SellGas
+            if not sellGui.Visible then
+                if sellPrompt then
+                    pcall(function() fireproximityprompt(sellPrompt) end)
+                    task.wait(0.6)
                 else
-                    warn("[AutoSell] ✗ Activated:Fire() failed:", tostring(err2))
                 end
-            end
-            if not fired then
-                print("[AutoSell] Trying to find RemoteEvent in SellGas...")
-                local ok3, err3 = pcall(function()
-                    for _, v in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-                        if v:IsA("RemoteEvent") and v.Name:lower():find("sell") then
-                            print("[AutoSell]   Found RemoteEvent:", v:GetFullName())
-                            v:FireServer()
-                            fired = true
-                            break
-                        end
-                    end
-                end)
-                if not ok3 then
-                    warn("[AutoSell] ✗ RemoteEvent search failed:", tostring(err3))
-                end
-            end
-            if fired then
-                print("[AutoSell] ✓ Sell attempt complete")
             else
-                warn("[AutoSell] ✗ ALL METHODS FAILED — could not click Sell button")
             end
-            panel.Visible = wasVisible
+            local sold = trySell()
+            if sold then
+                lastSellPrice = price
+            else
+                lastSellPrice = nil
+            end
+            if wasEnabled then
+                enabled = true
+                farmThread = task.spawn(farmLoop)
+                return
+            end
+            task.wait(5)
+        elseif not priceOk then
+            lastSellPrice = nil
         end
-
         task.wait(1)
     end
-    print("[AutoSell] Loop stopped")
 end
 pcall(function()
     local old = game:GetService("CoreGui"):FindFirstChild("DrillFarmGUI")
@@ -256,7 +358,7 @@ end
 local MAIN_W   = 280
 local MAX_H    = 400
 local TITLE_H  = 46
-local RADIUS   = 14   
+local RADIUS   = 14
 local main = Instance.new("Frame", gui)
 main.Name              = "Main"
 main.Size              = UDim2.new(0, MAIN_W, 0, MAX_H)
@@ -275,7 +377,7 @@ local titleBar = Instance.new("Frame", main)
 titleBar.Size             = UDim2.new(1,0,0,TITLE_H)
 titleBar.BackgroundColor3 = Color3.fromRGB(10,10,10)
 titleBar.BorderSizePixel  = 0
-corner(titleBar, RADIUS) 
+corner(titleBar, RADIUS)
 local titleBarBottom = Instance.new("Frame", titleBar)
 titleBarBottom.Size             = UDim2.new(1,0,0,RADIUS)
 titleBarBottom.Position         = UDim2.new(0,0,1,-RADIUS)
@@ -298,6 +400,7 @@ titleLabel.Font              = Enum.Font.GothamBold
 titleLabel.TextXAlignment    = Enum.TextXAlignment.Left
 local bylineLabel = Instance.new("TextLabel", titleBar)
 bylineLabel.Text             = "made by dekxonn"
+bylineLabel.RichText         = true
 bylineLabel.Size             = UDim2.new(1,-95,0,11)
 bylineLabel.Position         = UDim2.new(0,26,0,25)
 bylineLabel.BackgroundTransparency = 1
@@ -418,7 +521,7 @@ local function mkLabel(parent, text, size, x, y, w, h_, bold, color)
     l.TextXAlignment    = Enum.TextXAlignment.Left
     return l
 end
-local reg1 = mkSectionHeader("REFINERY AUTO PICKUP", 1, true)
+local reg1 = mkSectionHeader("REFINERY AUTO PICKUP", 1, false)
 local statusCard = mkCard(44, 2)
 reg1(statusCard)
 local statusDot = Instance.new("Frame", statusCard)
@@ -432,12 +535,12 @@ local drillCountLabel = mkLabel(statusCard,"0 refineries found",10,28,24,0.75,14
 local farmCard = mkCard(50, 3)
 reg1(farmCard)
 mkLabel(farmCard,"Auto Pickup",13,14,10,0.7,18,true)
-mkLabel(farmCard,"Collects all full refineries on your plot",12,14,28,0.7,15,false,Color3.fromRGB(70,70,70))
+do local l=mkLabel(farmCard,"Collects full refineries",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
 local switchBg, switchKnob, switchBtn = mkSwitch(farmCard, false)
 local sliderCard = mkCard(68, 5)
 reg1(sliderCard)
 mkLabel(sliderCard,"Tween Speed",13,14,9,0.55,18,true)
-mkLabel(sliderCard,"Duration per tween",12,14,27,0.55,14,false,Color3.fromRGB(70,70,70))
+do local l=mkLabel(sliderCard,"Duration per tween",12,14,27,0,14,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,14); l.TextTruncate=Enum.TextTruncate.AtEnd end
 local speedVal = Instance.new("TextLabel", sliderCard)
 speedVal.Text              = "0.1s"
 speedVal.Size              = UDim2.new(0.45,-14,0,22)
@@ -472,7 +575,7 @@ local rmax = mkLabel(sliderCard,"1.0s",11,0,57,1,13,false,Color3.fromRGB(55,55,5
 rmax.TextXAlignment = Enum.TextXAlignment.Right
 rmax.Position = UDim2.new(1,-44,0,57)
 local reg2 = mkSectionHeader("AUTOSELL", 10, false)
-local gasPriceCard = mkCard(54, 10.5)
+local gasPriceCard = mkCard(72, 10.5)
 reg2(gasPriceCard)
 mkLabel(gasPriceCard,"GAS PRICE",11,14,8,0.5,13,true,Color3.fromRGB(80,80,80))
 local gasPriceVal = Instance.new("TextLabel", gasPriceCard)
@@ -484,15 +587,6 @@ gasPriceVal.TextColor3        = Color3.fromRGB(110,210,160)
 gasPriceVal.TextSize          = 18
 gasPriceVal.Font              = Enum.Font.GothamBold
 gasPriceVal.TextXAlignment    = Enum.TextXAlignment.Left
-local gasTimerLabel = Instance.new("TextLabel", gasPriceCard)
-gasTimerLabel.Text              = "next in —"
-gasTimerLabel.Size              = UDim2.new(0.5,-8,0,14)
-gasTimerLabel.Position          = UDim2.new(0,14,0,38)
-gasTimerLabel.BackgroundTransparency = 1
-gasTimerLabel.TextColor3        = Color3.fromRGB(75,75,75)
-gasTimerLabel.TextSize          = 12
-gasTimerLabel.Font              = Enum.Font.Gotham
-gasTimerLabel.TextXAlignment    = Enum.TextXAlignment.Left
 mkLabel(gasPriceCard,"SELL PRICE",11,0,8,1,13,true,Color3.fromRGB(80,80,80)).Position = UDim2.new(0.5,4,0,8)
 local sellPriceVal = Instance.new("TextLabel", gasPriceCard)
 sellPriceVal.Text              = "—"
@@ -504,23 +598,36 @@ sellPriceVal.TextSize          = 18
 sellPriceVal.Font              = Enum.Font.GothamBold
 sellPriceVal.TextXAlignment    = Enum.TextXAlignment.Left
 local divider = Instance.new("Frame", gasPriceCard)
-divider.Size             = UDim2.new(0,1,0,34)
+divider.Size             = UDim2.new(0,1,0,30)
 divider.Position         = UDim2.new(0.5,0,0,10)
 divider.BackgroundColor3 = Color3.fromRGB(30,30,30)
 divider.BorderSizePixel  = 0
+local timerSep = Instance.new("Frame", gasPriceCard)
+timerSep.Size             = UDim2.new(1,-28,0,1)
+timerSep.Position         = UDim2.new(0,14,0,46)
+timerSep.BackgroundColor3 = Color3.fromRGB(24,24,24)
+timerSep.BorderSizePixel  = 0
+local gasTimerLabel = Instance.new("TextLabel", gasPriceCard)
+gasTimerLabel.Text              = "✦ Next Price in: — ✦"
+gasTimerLabel.Size              = UDim2.new(1,-28,0,16)
+gasTimerLabel.Position          = UDim2.new(0,14,0,51)
+gasTimerLabel.BackgroundTransparency = 1
+gasTimerLabel.TextColor3        = Color3.fromRGB(130,130,130)
+gasTimerLabel.TextSize          = 11
+gasTimerLabel.Font              = Enum.Font.GothamSemibold
+gasTimerLabel.TextXAlignment    = Enum.TextXAlignment.Center
 local sellCard = mkCard(50, 11)
 reg2(sellCard)
 mkLabel(sellCard,"Auto Sell",13,14,10,0.7,18,true)
-mkLabel(sellCard,"Sells when gas price ≥ target",12,14,28,0.7,15,false,Color3.fromRGB(70,70,70))
+do local l=mkLabel(sellCard,"Sells when price ≥ target",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
 local sellSwitchBg, sellSwitchKnob, sellSwitchBtn = mkSwitch(sellCard, false)
 local priceCard = mkCard(58, 12)
 reg2(priceCard)
 mkLabel(priceCard,"Min Gas Price",13,14,9,0.6,18,true)
-mkLabel(priceCard,"Sell only if price ≥ this value",12,14,27,0.6,14,false,Color3.fromRGB(70,70,70))
 local minusBtn = Instance.new("TextButton", priceCard)
 minusBtn.Text             = "−"
 minusBtn.Size             = UDim2.new(0,28,0,28)
-minusBtn.Position         = UDim2.new(1,-100,0.5,-14)
+minusBtn.Position         = UDim2.new(1,-110,0.5,-14)
 minusBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
 minusBtn.TextColor3       = Color3.fromRGB(160,160,160)
 minusBtn.TextSize         = 18
@@ -529,9 +636,9 @@ minusBtn.BorderSizePixel  = 0
 corner(minusBtn, 7)
 stroke(minusBtn, Color3.fromRGB(45,45,45))
 local priceDisplay = Instance.new("TextLabel", priceCard)
-priceDisplay.Text              = "15"
+priceDisplay.Text              = "12"
 priceDisplay.Size              = UDim2.new(0,36,0,28)
-priceDisplay.Position          = UDim2.new(1,-68,0.5,-14)
+priceDisplay.Position          = UDim2.new(1,-78,0.5,-14)
 priceDisplay.BackgroundColor3  = Color3.fromRGB(14,14,14)
 priceDisplay.TextColor3        = Color3.fromRGB(220,220,220)
 priceDisplay.TextSize          = 16
@@ -542,7 +649,7 @@ stroke(priceDisplay, Color3.fromRGB(38,38,38))
 local plusBtn = Instance.new("TextButton", priceCard)
 plusBtn.Text             = "+"
 plusBtn.Size             = UDim2.new(0,28,0,28)
-plusBtn.Position         = UDim2.new(1,-28,0.5,-14)
+plusBtn.Position         = UDim2.new(1,-38,0.5,-14)
 plusBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
 plusBtn.TextColor3       = Color3.fromRGB(160,160,160)
 plusBtn.TextSize         = 18
@@ -550,6 +657,65 @@ plusBtn.Font             = Enum.Font.GothamBold
 plusBtn.BorderSizePixel  = 0
 corner(plusBtn, 7)
 stroke(plusBtn, Color3.fromRGB(45,45,45))
+local gasCard = mkCard(82, 13)
+reg2(gasCard)
+mkLabel(gasCard,"Min Gasoline",13,14,9,0.6,18,true)
+do local l=mkLabel(gasCard,"Min gas before selling",12,14,27,0,14,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,14); l.TextTruncate=Enum.TextTruncate.AtEnd end
+local gasVal = Instance.new("TextLabel", gasCard)
+gasVal.Text              = "50,000"
+gasVal.Size              = UDim2.new(0.5,-8,0,22)
+gasVal.Position          = UDim2.new(0.5,4,0,9)
+gasVal.BackgroundTransparency = 1
+gasVal.TextColor3        = Color3.fromRGB(155,155,155)
+gasVal.TextSize          = 16
+gasVal.Font              = Enum.Font.GothamBold
+gasVal.TextXAlignment    = Enum.TextXAlignment.Right
+local gasTrack = Instance.new("Frame", gasCard)
+gasTrack.Size             = UDim2.new(1,-28,0,4)
+gasTrack.Position         = UDim2.new(0,14,0,52)
+gasTrack.BackgroundColor3 = Color3.fromRGB(36,36,36)
+gasTrack.BorderSizePixel  = 0
+corner(gasTrack, 99)
+local GAS_MIN, GAS_MAX = 1000, 10000000
+local gasInitAlpha = (minGasoline - GAS_MIN) / (GAS_MAX - GAS_MIN)
+local GAS_Z1_START, GAS_Z1_END, GAS_Z1_STEP = 1000,    100000,   1000
+local GAS_Z2_START, GAS_Z2_END, GAS_Z2_STEP = 100000,  1000000,  25000
+local GAS_Z3_START, GAS_Z3_END, GAS_Z3_STEP = 1000000, 10000000, 100000
+local GAS_Z1_STEPS = (GAS_Z1_END - GAS_Z1_START) / GAS_Z1_STEP
+local GAS_Z2_STEPS = (GAS_Z2_END - GAS_Z2_START) / GAS_Z2_STEP
+local GAS_Z3_STEPS = (GAS_Z3_END - GAS_Z3_START) / GAS_Z3_STEP
+local GAS_TOTAL_STEPS = GAS_Z1_STEPS + GAS_Z2_STEPS + GAS_Z3_STEPS
+local GAS_Z1_ALPHA = GAS_Z1_STEPS / GAS_TOTAL_STEPS
+local GAS_Z2_ALPHA = GAS_Z1_ALPHA + GAS_Z2_STEPS / GAS_TOTAL_STEPS
+local gasFill = Instance.new("Frame", gasTrack)
+gasFill.Size             = UDim2.new(gasInitAlpha,0,1,0)
+gasFill.BackgroundColor3 = Color3.fromRGB(150,150,150)
+gasFill.BorderSizePixel  = 0
+corner(gasFill, 99)
+local gasKnob = Instance.new("Frame", gasTrack)
+gasKnob.Size             = UDim2.new(0,14,0,14)
+gasKnob.AnchorPoint      = Vector2.new(0.5,0.5)
+gasKnob.Position         = UDim2.new(gasInitAlpha,0,0.5,0)
+gasKnob.BackgroundColor3 = Color3.fromRGB(225,225,225)
+gasKnob.BorderSizePixel  = 0
+gasKnob.ZIndex           = 3
+corner(gasKnob, 99)
+local gasRangeMin = mkLabel(gasCard,"1K",11,14,68,0,13,false,Color3.fromRGB(55,55,55))
+local gasRangeMax = mkLabel(gasCard,"10M",11,0,68,1,13,false,Color3.fromRGB(55,55,55))
+gasRangeMax.TextXAlignment = Enum.TextXAlignment.Right
+gasRangeMax.Position = UDim2.new(1,-14,0,68)
+local footerFrame = Instance.new("Frame", scroll)
+footerFrame.Size              = UDim2.new(1,0,0,22)
+footerFrame.BackgroundTransparency = 1
+footerFrame.LayoutOrder       = 99
+local footerLbl = Instance.new("TextLabel", footerFrame)
+footerLbl.Text              = "made by dekxonn"
+footerLbl.Size              = UDim2.new(1,0,1,0)
+footerLbl.BackgroundTransparency = 1
+footerLbl.TextColor3        = Color3.fromRGB(140,140,140)
+footerLbl.TextSize          = 12
+footerLbl.Font              = Enum.Font.Gotham
+footerLbl.TextXAlignment    = Enum.TextXAlignment.Center
 do
     local dragging, dStart, dPos = false, nil, nil
     titleBar.InputBegan:Connect(function(i)
@@ -600,7 +766,6 @@ local function updateFarmVisual()
     statusLabel.Text       = enabled and "ACTIVE" or "INACTIVE"
     statusLabel.TextColor3 = enabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(65,65,65)
 end
-
 switchBtn.MouseButton1Click:Connect(function()
     enabled = not enabled
     updateFarmVisual()
@@ -669,6 +834,66 @@ local function btnHold(btn, delta)
 end
 btnHold(minusBtn, -1)
 btnHold(plusBtn,   1)
+local function formatGas(v)
+    if v >= 1000000 then return string.format("%.1fM", v/1000000)
+    elseif v >= 1000 then return string.format("%dK", math.floor(v/1000))
+    else return tostring(v) end
+end
+local function gasAlphaToValue(alpha)
+    alpha = math.clamp(alpha, 0, 1)
+    if alpha <= GAS_Z1_ALPHA then
+        local step = math.floor(alpha / GAS_Z1_ALPHA * GAS_Z1_STEPS + 0.5)
+        return GAS_Z1_START + step * GAS_Z1_STEP
+    elseif alpha <= GAS_Z2_ALPHA then
+        local zAlpha = (alpha - GAS_Z1_ALPHA) / (GAS_Z2_ALPHA - GAS_Z1_ALPHA)
+        local step   = math.floor(zAlpha * GAS_Z2_STEPS + 0.5)
+        return GAS_Z2_START + step * GAS_Z2_STEP
+    else
+        local zAlpha = (alpha - GAS_Z2_ALPHA) / (1 - GAS_Z2_ALPHA)
+        local step   = math.floor(zAlpha * GAS_Z3_STEPS + 0.5)
+        return GAS_Z3_START + step * GAS_Z3_STEP
+    end
+end
+local function gasValueToAlpha(v)
+    if v <= GAS_Z1_END then
+        local step = (v - GAS_Z1_START) / GAS_Z1_STEP
+        return step / GAS_TOTAL_STEPS
+    elseif v <= GAS_Z2_END then
+        local step = (v - GAS_Z2_START) / GAS_Z2_STEP
+        return GAS_Z1_ALPHA + step / GAS_TOTAL_STEPS
+    else
+        local step = (v - GAS_Z3_START) / GAS_Z3_STEP
+        return GAS_Z2_ALPHA + step / GAS_TOTAL_STEPS
+    end
+end
+local gasSliderActive = false
+local function setGasSlider(alpha)
+    alpha       = math.clamp(alpha, 0, 1)
+    minGasoline = gasAlphaToValue(alpha)
+    local snappedAlpha = gasValueToAlpha(minGasoline)
+    gasVal.Text       = formatGas(minGasoline)
+    gasFill.Size      = UDim2.new(snappedAlpha, 0, 1, 0)
+    gasKnob.Position  = UDim2.new(snappedAlpha, 0, 0.5, 0)
+end
+local function gasAlphaFromX(x)
+    return (x - gasTrack.AbsolutePosition.X) / gasTrack.AbsoluteSize.X
+end
+gasTrack.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        gasSliderActive = true; setGasSlider(gasAlphaFromX(i.Position.X))
+    end
+end)
+gasKnob.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then gasSliderActive = true end
+end)
+UserInputService.InputChanged:Connect(function(i)
+    if gasSliderActive and i.UserInputType == Enum.UserInputType.MouseMovement then
+        setGasSlider(gasAlphaFromX(i.Position.X))
+    end
+end)
+UserInputService.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 then gasSliderActive = false end
+end)
 for _, btn in ipairs({closeBtn, minBtn, minusBtn, plusBtn}) do
     local norm = btn.BackgroundColor3
     local hov  = btn == closeBtn and Color3.fromRGB(55,22,22)
@@ -710,27 +935,38 @@ task.spawn(function()
         local okP, price = pcall(function()
             return game:GetService("ReplicatedStorage").GasPrice.Value
         end)
+        local priceAbove = okP and type(price) == "number" and price >= sellPrice
         if okP and price then
-            gasPriceVal.Text = "$" .. tostring(price)
-            gasPriceVal.TextColor3 = (type(price) == "number" and price >= sellPrice)
+            gasPriceVal.Text       = "$" .. tostring(price)
+            gasPriceVal.TextColor3 = priceAbove
                 and Color3.fromRGB(110,210,160)
-                or  Color3.fromRGB(160,80,80)
+                or  Color3.fromRGB(180,80,80)
         end
         local okT, timerTxt = pcall(function()
             return lp.PlayerGui.Main.SellGas.NextStock.Text
         end)
-        gasTimerLabel.Text = okT and ("next in " .. tostring(timerTxt)) or "next in —"
+        if okT and timerTxt and tostring(timerTxt) ~= "" then
+            gasTimerLabel.Text = "" .. tostring(timerTxt)
+        else
+            gasTimerLabel.Text = ""
+        end
         local okS, spRaw = pcall(function()
             return lp.PlayerGui.Main.SellGas.Main.Sell.TextLabel.Text
         end)
-        if okS and spRaw then
-            local extracted = spRaw:match("%$[%d,]+")
-            sellPriceVal.Text = extracted or "—"
-        else
-            sellPriceVal.Text = "—"
+        local extracted = (okS and spRaw) and spRaw:match("%$[%d,]+") or "—"
+        sellPriceVal.Text = extracted
+        do
+            local gasPriceStr = (okP and price) and ("$"..tostring(price)) or "$—"
+            local sellStr     = extracted ~= "—" and extracted or "$—"
+            local gasColor    = priceAbove and "#6ED8A8" or "#D06060"
+            local sellColor   = "#6ED8A8"
+            local tagColor    = sellEnabled and "#DEDEDE" or "#888888"
+            local tagText     = sellEnabled and "ON" or "OFF"
+            bylineLabel.Text = string.format(
+                '<font color="%s">Gas %s</font>  <font color="%s">Sell %s</font>  <font color="%s">[AutoSell %s]</font>',
+                gasColor, gasPriceStr, sellColor, sellStr, tagColor, tagText
+            )
         end
         task.wait(1)
     end
 end)
-
-print("[OilEmpireAF] Loaded  –  " .. username)
