@@ -396,7 +396,7 @@ accentBar.BackgroundColor3 = Color3.fromRGB(120,200,160)
 accentBar.BorderSizePixel  = 0
 corner(accentBar, 2)
 local titleLabel = Instance.new("TextLabel", titleBar)
-titleLabel.Text              = "OIL EMPIRE AUTOFARM"
+titleLabel.Text              = "Oil Empire🛢️"
 titleLabel.Size              = UDim2.new(1,-95,0,16)
 titleLabel.Position          = UDim2.new(0,26,0,7)
 titleLabel.BackgroundTransparency = 1
@@ -411,7 +411,7 @@ bylineLabel.Size             = UDim2.new(1,-95,0,11)
 bylineLabel.Position         = UDim2.new(0,26,0,25)
 bylineLabel.BackgroundTransparency = 1
 bylineLabel.TextColor3       = Color3.fromRGB(225,225,225)
-bylineLabel.TextSize         = 9
+bylineLabel.TextSize         = 12
 bylineLabel.Font             = Enum.Font.Gotham
 bylineLabel.TextXAlignment   = Enum.TextXAlignment.Left
 local minBtn = Instance.new("TextButton", titleBar)
