@@ -122,7 +122,7 @@ local function farmLoop()
     end
 end
 local sellEnabled = false
-local sellPrice   = 15
+local sellPrice   = 10
 local minGasoline = 50000
 local sellThread  = nil
 local sellStore, sellPrompt, sellRemote
@@ -642,7 +642,7 @@ minusBtn.BorderSizePixel  = 0
 corner(minusBtn, 7)
 stroke(minusBtn, Color3.fromRGB(45,45,45))
 local priceDisplay = Instance.new("TextLabel", priceCard)
-priceDisplay.Text              = "15"
+priceDisplay.Text              = "10"
 priceDisplay.Size              = UDim2.new(0,36,0,28)
 priceDisplay.Position          = UDim2.new(1,-78,0.5,-14)
 priceDisplay.BackgroundColor3  = Color3.fromRGB(14,14,14)
