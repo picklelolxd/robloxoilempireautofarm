@@ -9,6 +9,24 @@ local enabled    = false
 local tweenSpeed = 0.1
 local useTween   = true
 local farmThread = nil
+local antiAfkOn  = false
+local antiAfkConn = nil
+
+local function setAntiAfk(on)
+    antiAfkOn = on
+    if antiAfkConn then
+        antiAfkConn:Disconnect()
+        antiAfkConn = nil
+    end
+    if on then
+        antiAfkConn = lp.Idled:Connect(function()
+            local vp = game:GetService("VirtualInputManager")
+            vp:SendKeyEvent(true,  Enum.KeyCode.W, false, game)
+            task.wait(0.1)
+            vp:SendKeyEvent(false, Enum.KeyCode.W, false, game)
+        end)
+    end
+end
 local function getPlayerPlot()
     local plotsFolder = workspace:FindFirstChild("Plots")
     if not plotsFolder then return nil end
@@ -704,6 +722,59 @@ local gasRangeMin = mkLabel(gasCard,"1K",11,14,68,0,13,false,Color3.fromRGB(55,5
 local gasRangeMax = mkLabel(gasCard,"10M",11,0,68,1,13,false,Color3.fromRGB(55,55,55))
 gasRangeMax.TextXAlignment = Enum.TextXAlignment.Right
 gasRangeMax.Position = UDim2.new(1,-14,0,68)
+local afkCard = mkCard(44, 98)
+local afkCheckBg = Instance.new("Frame", afkCard)
+afkCheckBg.Size             = UDim2.new(0,18,0,18)
+afkCheckBg.Position         = UDim2.new(0,14,0.5,-9)
+afkCheckBg.BackgroundColor3 = Color3.fromRGB(22,22,22)
+afkCheckBg.BorderSizePixel  = 0
+corner(afkCheckBg, 4)
+stroke(afkCheckBg, Color3.fromRGB(50,50,50))
+local afkCheckMark = Instance.new("TextLabel", afkCheckBg)
+afkCheckMark.Text              = ""
+afkCheckMark.Size              = UDim2.new(1,0,1,0)
+afkCheckMark.BackgroundTransparency = 1
+afkCheckMark.TextColor3        = Color3.fromRGB(120,220,170)
+afkCheckMark.TextSize          = 13
+afkCheckMark.Font              = Enum.Font.GothamBold
+afkCheckMark.TextXAlignment    = Enum.TextXAlignment.Center
+local afkLabel = Instance.new("TextLabel", afkCard)
+afkLabel.Text              = "Anti-AFK"
+afkLabel.Size              = UDim2.new(1,-80,0,16)
+afkLabel.Position          = UDim2.new(0,40,0.5,-12)
+afkLabel.BackgroundTransparency = 1
+afkLabel.TextColor3        = Color3.fromRGB(155,155,155)
+afkLabel.TextSize          = 13
+afkLabel.Font              = Enum.Font.GothamSemibold
+afkLabel.TextXAlignment    = Enum.TextXAlignment.Left
+local afkSub = Instance.new("TextLabel", afkCard)
+afkSub.Text              = "Prevents idle kick"
+afkSub.Size              = UDim2.new(1,-80,0,13)
+afkSub.Position          = UDim2.new(0,40,0.5,4)
+afkSub.BackgroundTransparency = 1
+afkSub.TextColor3        = Color3.fromRGB(60,60,60)
+afkSub.TextSize          = 10
+afkSub.Font              = Enum.Font.Gotham
+afkSub.TextXAlignment    = Enum.TextXAlignment.Left
+local afkBtn = Instance.new("TextButton", afkCard)
+afkBtn.Size              = UDim2.new(1,0,1,0)
+afkBtn.BackgroundTransparency = 1
+afkBtn.Text              = ""
+afkBtn.MouseButton1Click:Connect(function()
+    antiAfkOn = not antiAfkOn
+    setAntiAfk(antiAfkOn)
+    if antiAfkOn then
+        afkCheckMark.Text = "✓"
+        TweenService:Create(afkCheckBg, TweenInfo.new(0.15), {
+            BackgroundColor3 = Color3.fromRGB(30,75,55)
+        }):Play()
+    else
+        afkCheckMark.Text = ""
+        TweenService:Create(afkCheckBg, TweenInfo.new(0.15), {
+            BackgroundColor3 = Color3.fromRGB(22,22,22)
+        }):Play()
+    end
+end)
 local footerFrame = Instance.new("Frame", scroll)
 footerFrame.Size              = UDim2.new(1,0,0,22)
 footerFrame.BackgroundTransparency = 1
@@ -712,8 +783,8 @@ local footerLbl = Instance.new("TextLabel", footerFrame)
 footerLbl.Text              = "made by dekxonn"
 footerLbl.Size              = UDim2.new(1,0,1,0)
 footerLbl.BackgroundTransparency = 1
-footerLbl.TextColor3        = Color3.fromRGB(140,140,140)
-footerLbl.TextSize          = 12
+footerLbl.TextColor3        = Color3.fromRGB(40,40,40)
+footerLbl.TextSize          = 10
 footerLbl.Font              = Enum.Font.Gotham
 footerLbl.TextXAlignment    = Enum.TextXAlignment.Center
 do
@@ -753,6 +824,7 @@ end)
 closeBtn.MouseButton1Click:Connect(function()
     enabled     = false
     sellEnabled = false
+    setAntiAfk(false)
     if farmThread then task.cancel(farmThread) farmThread = nil end
     if sellThread then task.cancel(sellThread) sellThread = nil end
     TweenService:Create(main, TweenInfo.new(0.15), {Size = UDim2.new(0,MAIN_W,0,0)}):Play()
