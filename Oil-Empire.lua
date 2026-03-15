@@ -1,3 +1,4 @@
+
 -- Oil Empire🛢️ Auto Farm, Auto Sell, keyless - open source | Made by dkxn
 
 local Players          = game:GetService("Players")
@@ -361,7 +362,7 @@ local function animSwitch(bg, knob, on)
         BackgroundColor3 = on and SWITCH_ON_BG or SWITCH_OFF_BG,
     }):Play()
 end
-local MAIN_W   = 280
+local MAIN_W   = 320
 local MAX_H    = 400
 local TITLE_H  = 46
 local RADIUS   = 14
@@ -536,7 +537,7 @@ statusDot.Position         = UDim2.new(0,14,0,12)
 statusDot.BackgroundColor3 = Color3.fromRGB(50,50,50)
 statusDot.BorderSizePixel  = 0
 corner(statusDot, 99)
-local statusLabel = mkLabel(statusCard,"INACTIVE",11,28,6,0.75,16,true,Color3.fromRGB(65,65,65))
+local statusLabel = mkLabel(statusCard,"INACTIVE",11,28,6,0.75,16,true,Color3.fromRGB(125,125,125))
 local drillCountLabel = mkLabel(statusCard,"0 refineries found",10,28,24,0.75,14,false,Color3.fromRGB(120,120,120))
 local farmCard = mkCard(50, 3)
 reg1(farmCard)
@@ -771,7 +772,7 @@ local footerLbl = Instance.new("TextLabel", footerFrame)
 footerLbl.Text              = "made by dekxonn"
 footerLbl.Size              = UDim2.new(1,0,1,0)
 footerLbl.BackgroundTransparency = 1
-footerLbl.TextColor3        = Color3.fromRGB(40,40,40)
+footerLbl.TextColor3        = Color3.fromRGB(150,150,150)
 footerLbl.TextSize          = 10
 footerLbl.Font              = Enum.Font.Gotham
 footerLbl.TextXAlignment    = Enum.TextXAlignment.Center
@@ -824,7 +825,7 @@ local function updateFarmVisual()
         BackgroundColor3 = enabled and Color3.fromRGB(120,220,170) or Color3.fromRGB(50,50,50)
     }):Play()
     statusLabel.Text       = enabled and "ACTIVE" or "INACTIVE"
-    statusLabel.TextColor3 = enabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(65,65,65)
+    statusLabel.TextColor3 = enabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(125,125,125)
 end
 switchBtn.MouseButton1Click:Connect(function()
     enabled = not enabled
