@@ -122,7 +122,7 @@ local function farmLoop()
     end
 end
 local sellEnabled = false
-local sellPrice   = 12
+local sellPrice   = 15
 local minGasoline = 50000
 local sellThread  = nil
 local sellStore, sellPrompt, sellRemote
@@ -271,7 +271,6 @@ local function sellLoop()
             return
         end
     end
-    local lastSellPrice = nil
     while sellEnabled do
         local okP, price = pcall(function()
             return game:GetService("ReplicatedStorage").GasPrice.Value
@@ -283,9 +282,7 @@ local function sellLoop()
             return lp.leaderstats.Gasoline.Value
         end)
         local hasEnoughGas = okG and type(gasoline) == "number" and gasoline >= minGasoline
-        local priceOk     = price >= sellPrice
-        local alreadySold = price == lastSellPrice
-        if priceOk and hasEnoughGas and not alreadySold then
+        if price >= sellPrice and hasEnoughGas then
             local wasEnabled = enabled
             if wasEnabled then
                 enabled = false
@@ -296,26 +293,17 @@ local function sellLoop()
                 if sellPrompt then
                     pcall(function() fireproximityprompt(sellPrompt) end)
                     task.wait(0.6)
-                else
                 end
-            else
             end
-            local sold = trySell()
-            if sold then
-                lastSellPrice = price
-            else
-                lastSellPrice = nil
-            end
+            trySell()
             if wasEnabled then
                 enabled = true
                 farmThread = task.spawn(farmLoop)
-                return
             end
             task.wait(5)
-        elseif not priceOk then
-            lastSellPrice = nil
+        else
+            task.wait(1)
         end
-        task.wait(1)
     end
 end
 pcall(function()
@@ -654,7 +642,7 @@ minusBtn.BorderSizePixel  = 0
 corner(minusBtn, 7)
 stroke(minusBtn, Color3.fromRGB(45,45,45))
 local priceDisplay = Instance.new("TextLabel", priceCard)
-priceDisplay.Text              = "12"
+priceDisplay.Text              = "15"
 priceDisplay.Size              = UDim2.new(0,36,0,28)
 priceDisplay.Position          = UDim2.new(1,-78,0.5,-14)
 priceDisplay.BackgroundColor3  = Color3.fromRGB(14,14,14)
@@ -1018,9 +1006,9 @@ task.spawn(function()
             return lp.PlayerGui.Main.SellGas.NextStock.Text
         end)
         if okT and timerTxt and tostring(timerTxt) ~= "" then
-            gasTimerLabel.Text = "" .. tostring(timerTxt)
+            gasTimerLabel.Text = "Next Price in: " .. tostring(timerTxt)
         else
-            gasTimerLabel.Text = ""
+            gasTimerLabel.Text = "Next Price in: —"
         end
         local okS, spRaw = pcall(function()
             return lp.PlayerGui.Main.SellGas.Main.Sell.TextLabel.Text
