@@ -1,4 +1,3 @@
-
 -- Oil Empire🛢️ Auto Farm, Auto Sell, keyless - open source | Made by dkxn
 
 local Players          = game:GetService("Players")
@@ -122,7 +121,83 @@ local function farmLoop()
         end
     end
 end
-local sellEnabled = false
+local stealEnabled = false
+local stealThread  = nil
+
+local function getOwnPlotIndex()
+    local plots = workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+    for i = 1, 6 do
+        local plot = plots:FindFirstChild("Plot" .. i)
+        if plot then
+            local ok, label = pcall(function()
+                return plot.OwnerTag.BillboardGui.Main.TextLabel
+            end)
+            if ok and label then
+                local owner = label.Text:match("^(.+)'s")
+                if owner == username then return i end
+            end
+        end
+    end
+    return nil
+end
+
+local function stealLoop()
+    while stealEnabled do
+        local plots = workspace:FindFirstChild("Plots")
+        if not plots then task.wait(2); continue end
+
+        local ownIdx = getOwnPlotIndex()
+
+        for i = 1, 6 do
+            if not stealEnabled then break end
+            if i == ownIdx then continue end
+
+            local plot = plots:FindFirstChild("Plot" .. i)
+            if not plot then continue end
+
+            local buildings = plot:FindFirstChild("Buildings")
+            if not buildings then continue end
+
+            for _, model in ipairs(buildings:GetChildren()) do
+                if not stealEnabled then break end
+                if not (model:IsA("Model") and model:GetAttribute("Type") == "Refinery") then continue end
+
+                local primary = model:FindFirstChild("Primary")
+                if not primary then continue end
+
+                local info  = primary:FindFirstChild("Info")
+                local main_ = info and info:FindFirstChild("Main")
+                local val   = main_ and main_:FindFirstChild("Value")
+                if not val then continue end
+
+                local cur, max = val.Text:match("^(%d+)/(%d+)$")
+                if not cur or not max then continue end
+                if tonumber(cur) ~= tonumber(max) then continue end
+
+                local stealAtc = primary:FindFirstChild("StealAtc")
+                if not stealAtc then continue end
+
+                local steal = stealAtc:FindFirstChild("Steal")
+                if not steal or not steal:IsA("ProximityPrompt") then continue end
+
+                local char = lp.Character
+                local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+                if not hrp then continue end
+
+                hrp.CFrame = primary.CFrame
+                task.wait(0.1)
+
+                steal.HoldDuration          = 0
+                steal.MaxActivationDistance = math.huge
+                fireproximityprompt(steal)
+                task.wait(0.5)
+            end
+        end
+
+        task.wait(1)
+    end
+end
 local sellPrice   = 10
 local minGasoline = 50000
 local sellThread  = nil
@@ -289,12 +364,9 @@ local function sellLoop()
                 enabled = false
                 if farmThread then task.cancel(farmThread); farmThread = nil end
             end
-            local sellGui = lp.PlayerGui.Main.SellGas
-            if not sellGui.Visible then
-                if sellPrompt then
-                    pcall(function() fireproximityprompt(sellPrompt) end)
-                    task.wait(0.6)
-                end
+            if sellPrompt then
+                pcall(function() fireproximityprompt(sellPrompt) end)
+                task.wait(0.6)
             end
             trySell()
             if wasEnabled then
@@ -362,7 +434,7 @@ local function animSwitch(bg, knob, on)
         BackgroundColor3 = on and SWITCH_ON_BG or SWITCH_OFF_BG,
     }):Play()
 end
-local MAIN_W   = 320
+local MAIN_W   = 280
 local MAX_H    = 400
 local TITLE_H  = 46
 local RADIUS   = 14
@@ -411,8 +483,8 @@ bylineLabel.RichText         = true
 bylineLabel.Size             = UDim2.new(1,-95,0,11)
 bylineLabel.Position         = UDim2.new(0,26,0,25)
 bylineLabel.BackgroundTransparency = 1
-bylineLabel.TextColor3       = Color3.fromRGB(225,225,225)
-bylineLabel.TextSize         = 12
+bylineLabel.TextColor3       = Color3.fromRGB(155,155,155)
+bylineLabel.TextSize         = 9
 bylineLabel.Font             = Enum.Font.Gotham
 bylineLabel.TextXAlignment   = Enum.TextXAlignment.Left
 local minBtn = Instance.new("TextButton", titleBar)
@@ -528,6 +600,14 @@ local function mkLabel(parent, text, size, x, y, w, h_, bold, color)
     l.TextXAlignment    = Enum.TextXAlignment.Left
     return l
 end
+local regSteal = mkSectionHeader("STEAL", -1, false)
+
+local stealCard = mkCard(50, 0)
+regSteal(stealCard)
+mkLabel(stealCard,"Steal from Everyone",13,14,10,0.7,18,true)
+do local l=mkLabel(stealCard,"Takes from all other plots",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
+local stealSwitchBg, stealSwitchKnob, stealSwitchBtn = mkSwitch(stealCard, false)
+
 local reg1 = mkSectionHeader("REFINERY AUTO PICKUP", 1, false)
 local statusCard = mkCard(44, 2)
 reg1(statusCard)
@@ -537,7 +617,7 @@ statusDot.Position         = UDim2.new(0,14,0,12)
 statusDot.BackgroundColor3 = Color3.fromRGB(50,50,50)
 statusDot.BorderSizePixel  = 0
 corner(statusDot, 99)
-local statusLabel = mkLabel(statusCard,"INACTIVE",11,28,6,0.75,16,true,Color3.fromRGB(125,125,125))
+local statusLabel = mkLabel(statusCard,"INACTIVE",11,28,6,0.75,16,true,Color3.fromRGB(65,65,65))
 local drillCountLabel = mkLabel(statusCard,"0 refineries found",10,28,24,0.75,14,false,Color3.fromRGB(120,120,120))
 local farmCard = mkCard(50, 3)
 reg1(farmCard)
@@ -772,8 +852,8 @@ local footerLbl = Instance.new("TextLabel", footerFrame)
 footerLbl.Text              = "made by dekxonn"
 footerLbl.Size              = UDim2.new(1,0,1,0)
 footerLbl.BackgroundTransparency = 1
-footerLbl.TextColor3        = Color3.fromRGB(150,150,150)
-footerLbl.TextSize          = 10
+footerLbl.TextColor3        = Color3.fromRGB(144,144,144)
+footerLbl.TextSize          = 12
 footerLbl.Font              = Enum.Font.Gotham
 footerLbl.TextXAlignment    = Enum.TextXAlignment.Center
 do
@@ -811,11 +891,13 @@ minBtn.MouseButton1Click:Connect(function()
     minBtn.Text          = "—"
 end)
 closeBtn.MouseButton1Click:Connect(function()
-    enabled     = false
-    sellEnabled = false
+    enabled      = false
+    sellEnabled  = false
+    stealEnabled = false
     setAntiAfk(false)
-    if farmThread then task.cancel(farmThread) farmThread = nil end
-    if sellThread then task.cancel(sellThread) sellThread = nil end
+    if farmThread  then task.cancel(farmThread);  farmThread  = nil end
+    if sellThread  then task.cancel(sellThread);  sellThread  = nil end
+    if stealThread then task.cancel(stealThread); stealThread = nil end
     TweenService:Create(main, TweenInfo.new(0.15), {Size = UDim2.new(0,MAIN_W,0,0)}):Play()
     task.delay(0.18, function() gui:Destroy() end)
 end)
@@ -825,7 +907,7 @@ local function updateFarmVisual()
         BackgroundColor3 = enabled and Color3.fromRGB(120,220,170) or Color3.fromRGB(50,50,50)
     }):Play()
     statusLabel.Text       = enabled and "ACTIVE" or "INACTIVE"
-    statusLabel.TextColor3 = enabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(125,125,125)
+    statusLabel.TextColor3 = enabled and Color3.fromRGB(195,195,195) or Color3.fromRGB(65,65,65)
 end
 switchBtn.MouseButton1Click:Connect(function()
     enabled = not enabled
@@ -837,7 +919,16 @@ switchBtn.MouseButton1Click:Connect(function()
         if farmThread then task.cancel(farmThread); farmThread = nil end
     end
 end)
-local sliderActive = false
+stealSwitchBtn.MouseButton1Click:Connect(function()
+    stealEnabled = not stealEnabled
+    animSwitch(stealSwitchBg, stealSwitchKnob, stealEnabled)
+    if stealEnabled then
+        if stealThread then task.cancel(stealThread) end
+        stealThread = task.spawn(stealLoop)
+    else
+        if stealThread then task.cancel(stealThread); stealThread = nil end
+    end
+end)
 local function setSlider(alpha)
     alpha      = math.clamp(alpha, 0, 1)
     tweenSpeed = MIN_S + (MAX_S - MIN_S) * alpha
