@@ -1006,9 +1006,9 @@ task.spawn(function()
             return lp.PlayerGui.Main.SellGas.NextStock.Text
         end)
         if okT and timerTxt and tostring(timerTxt) ~= "" then
-            gasTimerLabel.Text = "Next Price in: " .. tostring(timerTxt)
+            gasTimerLabel.Text = "" .. tostring(timerTxt)
         else
-            gasTimerLabel.Text = "Next Price in: —"
+            gasTimerLabel.Text = ""
         end
         local okS, spRaw = pcall(function()
             return lp.PlayerGui.Main.SellGas.Main.Sell.TextLabel.Text
