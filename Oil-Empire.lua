@@ -121,93 +121,7 @@ local function farmLoop()
         end
     end
 end
-local stealEnabled = false
-local stealThread  = nil
 
-local function getOwnPlotIndex()
-    local plots = workspace:FindFirstChild("Plots")
-    if not plots then return nil end
-    for i = 1, 6 do
-        local plot = plots:FindFirstChild("Plot" .. i)
-        if plot then
-            local ok, label = pcall(function()
-                return plot.OwnerTag.BillboardGui.Main.TextLabel
-            end)
-            if ok and label then
-                local owner = label.Text:match("^(.+)'s")
-                if owner == username then return i end
-            end
-        end
-    end
-    return nil
-end
-
-local function stealLoop()
-    while stealEnabled do
-        local plots = workspace:FindFirstChild("Plots")
-        if not plots then task.wait(2); continue end
-
-        local ownIdx  = getOwnPlotIndex()
-        local ownPlot = ownIdx and plots:FindFirstChild("Plot" .. ownIdx)
-        local homeTp  = ownPlot and ownPlot:FindFirstChild("TpHere")
-
-        for i = 1, 6 do
-            if not stealEnabled then break end
-            if i == ownIdx then continue end
-
-            local plot = plots:FindFirstChild("Plot" .. i)
-            if not plot then continue end
-
-            local buildings = plot:FindFirstChild("Buildings")
-            if not buildings then continue end
-
-            for _, model in ipairs(buildings:GetChildren()) do
-                if not stealEnabled then break end
-                if not (model:IsA("Model") and model:GetAttribute("Type") == "Refinery") then continue end
-
-                local primary = model:FindFirstChild("Primary")
-                if not primary then continue end
-
-                local info  = primary:FindFirstChild("Info")
-                local main_ = info and info:FindFirstChild("Main")
-                local val   = main_ and main_:FindFirstChild("Value")
-                if not val then continue end
-
-                local cur, max = val.Text:match("^(%d+)/(%d+)$")
-                if not cur or not max then continue end
-                if tonumber(cur) ~= tonumber(max) then continue end
-
-                local stealAtc = primary:FindFirstChild("StealAtc")
-                if not stealAtc then continue end
-
-                local steal = stealAtc:FindFirstChild("Steal")
-                if not steal or not steal:IsA("ProximityPrompt") then continue end
-
-                local char = lp.Character
-                local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-                if not hrp then continue end
-
-                hrp.CFrame = primary.CFrame
-                task.wait(0.1)
-
-                steal.HoldDuration          = 0
-                steal.MaxActivationDistance = math.huge
-                fireproximityprompt(steal)
-                task.wait(0.5)
-
-                if homeTp then
-                    local hrp2 = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-                    if hrp2 then
-                        hrp2.CFrame = homeTp.CFrame
-                        task.wait(0.5)
-                    end
-                end
-            end
-        end
-
-        task.wait(1)
-    end
-end
 local sellPrice   = 10
 local minGasoline = 10000
 local sellThread  = nil
@@ -610,14 +524,6 @@ local function mkLabel(parent, text, size, x, y, w, h_, bold, color)
     l.TextXAlignment    = Enum.TextXAlignment.Left
     return l
 end
-local regSteal = mkSectionHeader("STEAL", -1, false)
-
-local stealCard = mkCard(50, 0)
-regSteal(stealCard)
-mkLabel(stealCard,"Steal from Everyone",13,14,10,0.7,18,true)
-do local l=mkLabel(stealCard,"Takes from all other plots",12,14,28,0,15,false,Color3.fromRGB(70,70,70)); l.Size=UDim2.new(0,152,0,15); l.TextTruncate=Enum.TextTruncate.AtEnd end
-local stealSwitchBg, stealSwitchKnob, stealSwitchBtn = mkSwitch(stealCard, false)
-
 local reg1 = mkSectionHeader("REFINERY AUTO PICKUP", 1, false)
 local statusCard = mkCard(44, 2)
 reg1(statusCard)
@@ -903,11 +809,9 @@ end)
 closeBtn.MouseButton1Click:Connect(function()
     enabled      = false
     sellEnabled  = false
-    stealEnabled = false
     setAntiAfk(false)
     if farmThread  then task.cancel(farmThread);  farmThread  = nil end
     if sellThread  then task.cancel(sellThread);  sellThread  = nil end
-    if stealThread then task.cancel(stealThread); stealThread = nil end
     TweenService:Create(main, TweenInfo.new(0.15), {Size = UDim2.new(0,MAIN_W,0,0)}):Play()
     task.delay(0.18, function() gui:Destroy() end)
 end)
@@ -927,16 +831,6 @@ switchBtn.MouseButton1Click:Connect(function()
         farmThread = task.spawn(farmLoop)
     else
         if farmThread then task.cancel(farmThread); farmThread = nil end
-    end
-end)
-stealSwitchBtn.MouseButton1Click:Connect(function()
-    stealEnabled = not stealEnabled
-    animSwitch(stealSwitchBg, stealSwitchKnob, stealEnabled)
-    if stealEnabled then
-        if stealThread then task.cancel(stealThread) end
-        stealThread = task.spawn(stealLoop)
-    else
-        if stealThread then task.cancel(stealThread); stealThread = nil end
     end
 end)
 local function setSlider(alpha)
@@ -1108,14 +1002,14 @@ task.spawn(function()
             return lp.PlayerGui.Main.SellGas.NextStock.Text
         end)
         if okT and timerTxt and tostring(timerTxt) ~= "" then
-            gasTimerLabel.Text = "" .. tostring(timerTxt)
+            gasTimerLabel.Text = "Next Price in: " .. tostring(timerTxt)
         else
-            gasTimerLabel.Text = ""
+            gasTimerLabel.Text = "Next Price in: —"
         end
         local okS, spRaw = pcall(function()
             return lp.PlayerGui.Main.SellGas.Main.Sell.TextLabel.Text
         end)
-        local extracted = (okS and spRaw) and spRaw:match("%$[%d,%.]+%a*") or "—"
+        local extracted = (okS and spRaw) and spRaw:match("%$[%d,]+") or "—"
         sellPriceVal.Text = extracted
         do
             local gasPriceStr = (okP and price) and ("$"..tostring(price)) or "$—"
